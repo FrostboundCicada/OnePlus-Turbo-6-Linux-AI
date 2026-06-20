@@ -1,0 +1,355 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
+/*
+ * Device Tree Source for Qualcomm SM8735 (Snapdragon 8s Gen 4 / "Sun") SoC
+ *
+ * Based on Android kernel vendor DTS (sun.dtsi) and upstream Qualcomm DTS patterns.
+ * This is a WORK IN PROGRESS - not all peripherals are defined yet.
+ */
+
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/mailbox/qcom-ipcc.h>
+#include <dt-bindings/power/qcom-rpmpd.h>
+#include <dt-bindings/power/qcom,rpmhpd.h>
+#include <dt-bindings/soc/qcom,rpmh-rsc.h>
+#include <dt-bindings/thermal/thermal.h>
+
+/ {
+	interrupt-parent = <&intc>;
+
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	aliases {
+		serial0 = &uart7;
+	};
+
+	chosen { };
+
+	clocks {
+		xo_board: xo-board {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <76800000>;
+		};
+
+		sleep_clk: sleep-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <32000>;
+		};
+	};
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x0>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd0>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+			l2_0: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				cache-unified;
+			};
+		};
+
+		cpu1: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd1>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu2: cpu@200 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x200>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd2>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu3: cpu@300 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x300>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd3>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu4: cpu@400 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x400>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd4>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu5: cpu@500 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x500>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1792>;
+			dynamic-power-coefficient = <238>;
+			next-level-cache = <&l2_0>;
+			power-domains = <&cpu_pd5>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu6: cpu@10000 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x10000>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1894>;
+			dynamic-power-coefficient = <588>;
+			next-level-cache = <&l2_6>;
+			power-domains = <&cpu_pd6>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+			l2_6: l2-cache {
+				compatible = "cache";
+				cache-level = <2>;
+				cache-unified;
+			};
+		};
+
+		cpu7: cpu@10100 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0 0x10100>;
+			enable-method = "psci";
+			capacity-dmips-mhz = <1894>;
+			dynamic-power-coefficient = <588>;
+			next-level-cache = <&l2_6>;
+			power-domains = <&cpu_pd7>;
+			power-domain-names = "psci";
+			#cooling-cells = <2>;
+		};
+
+		cpu-map {
+			cluster0 {
+				core0 { cpu = <&cpu0>; };
+				core1 { cpu = <&cpu1>; };
+				core2 { cpu = <&cpu2>; };
+				core3 { cpu = <&cpu3>; };
+				core4 { cpu = <&cpu4>; };
+				core5 { cpu = <&cpu5>; };
+			};
+
+			cluster1 {
+				core0 { cpu = <&cpu6>; };
+				core1 { cpu = <&cpu7>; };
+			};
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			medium_sleep: medium-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x00000004>;
+				entry-latency-us = <93>;
+				exit-latency-us = <129>;
+				min-residency-us = <560>;
+			};
+
+			large_sleep: large-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x00000004>;
+				entry-latency-us = <172>;
+				exit-latency-us = <130>;
+				min-residency-us = <686>;
+			};
+
+			cluster_sleep: cluster-sleep {
+				compatible = "domain-idle-state";
+				arm,psci-suspend-param = <0x01000054>;
+				entry-latency-us = <2150>;
+				exit-latency-us = <1983>;
+				min-residency-us = <9144>;
+			};
+
+			system_sleep: system-sleep {
+				compatible = "domain-idle-state";
+				arm,psci-suspend-param = <0x0200C354>;
+				entry-latency-us = <2800>;
+				exit-latency-us = <4400>;
+				min-residency-us = <10150>;
+			};
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+
+		cpu_pd0: power-domain-cpu0 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd1: power-domain-cpu1 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd2: power-domain-cpu2 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd3: power-domain-cpu3 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd4: power-domain-cpu4 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd5: power-domain-cpu5 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd0>;
+			domain-idle-states = <&medium_sleep>;
+		};
+
+		cpu_pd6: power-domain-cpu6 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd1>;
+			domain-idle-states = <&large_sleep>;
+		};
+
+		cpu_pd7: power-domain-cpu7 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd1>;
+			domain-idle-states = <&large_sleep>;
+		};
+
+		cluster_pd0: power-domain-cluster0 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd2>;
+			domain-idle-states = <&cluster_sleep>;
+		};
+
+		cluster_pd1: power-domain-cluster1 {
+			#power-domain-cells = <0>;
+			power-domains = <&cluster_pd2>;
+			domain-idle-states = <&cluster_sleep>;
+		};
+
+		cluster_pd2: power-domain-cluster2 {
+			#power-domain-cells = <0>;
+			domain-idle-states = <&system_sleep>;
+		};
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>;
+	};
+
+	reserved_memory: reserved-memory { };
+
+	soc: soc@0 {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges = <0 0 0 0 0xffffffff>;
+
+		intc: interrupt-controller@16000000 {
+			compatible = "arm,gic-v3";
+			reg = <0 0x16000000 0 0x10000>,     /* GICD */
+			      <0 0x16080000 0 0x200000>;    /* GICR * 8 */
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_LOW>;
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			#redistributor-regions = <1>;
+		};
+
+		pdc: interrupt-controller@b220000 {
+			compatible = "qcom,sun-pdc", "qcom,pdc";
+			reg = <0 0xb220000 0 0x10000>;
+			qcom,pdc-ranges = <0 745 51>, <51 527 47>,
+					  <98 609 32>, <130 717 12>,
+					  <142 251 5>, <147 796 16>;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&intc>;
+			interrupt-controller;
+		};
+
+		tlmm: pinctrl@f000000 {
+			compatible = "qcom,sun-tlmm", "qcom,tlmm";
+			reg = <0 0xf000000 0 0x3000000>;
+			interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&tlmm 0 0 200>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		gcc: clock-controller@1000000 {
+			compatible = "qcom,sun-gcc";
+			reg = <0 0x1000000 0 0x1f4200>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
+			#power-domain-cells = <1>;
+		};
+
+		uart7: serial@98c000 {
+			compatible = "qcom,geni-debug-uart";
+			reg = <0 0x98c000 0 0x4000>;
+			interrupts = <GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&gcc 0>;
+			clock-names = "se";
+			status = "disabled";
+		};
+	};
+
+	firmware {
+		scm {
+			compatible = "qcom,scm";
+		};
+	};
+};

@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
+/*
+ * Device Tree for OnePlus Turbo 6 (SM8735 / "erhai")
+ *
+ * This is a minimal board-level device tree for getting the device
+ * to boot Linux. Many peripherals are not yet enabled.
+ *
+ * Project: OnePlus Turbo 6 Linux - https://github.com/FrostboundCicada/OnePlus-Turbo-6-Linux-AI
+ */
+
+/dts-v1/;
+
+#include "sm8735.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "OnePlus Turbo 6 (Erhai)";
+	compatible = "oneplus,erhai", "qcom,sun", "qcom,sm8735";
+
+	/* Board-specific memory configuration */
+	memory@80000000 {
+		device_type = "memory";
+		/* We reserve the first region for firmware/trustzone; 
+		 * actual size = 12GB (0x300000000) or 16GB (0x400000000) */
+		reg = <0x0 0x80000000 0x0 0x30000000>;  /* 768MB init region placeholder */
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* Bootloader/UEFI log area */
+		bootloader_log_mem: bootloader-log@81ce4000 {
+			reg = <0 0x81CE4000 0 0x00010000>;
+			no-map;
+		};
+
+		/* For now, minimal reserved regions.
+		 * Full memory map will be added after testing. */
+	};
+};
+
+/* Enable debug UART */
+&uart7 {
+	status = "okay";
+};
+
+/* For USB fastboot / device mode */
+&usb_qmp_dp {
+	status = "okay";
+};
+
+/* SD card slot (if present) */
+&sdhc_2 {
+	status = "okay";
+};
+
+&firmware {
+	scm {
+		compatible = "qcom,scm";
+	};
+};
