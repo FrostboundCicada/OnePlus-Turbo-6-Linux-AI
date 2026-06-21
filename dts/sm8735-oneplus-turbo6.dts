@@ -47,3 +47,25 @@
 &uart7 {
 	status = "okay";
 };
+
+/* Enable UFS storage */
+&ufs_mem_hc {
+	status = "okay";
+};
+
+&ufs_mem_phy {
+	status = "okay";
+};
+
+/* Enable USB */
+&usb_prim {
+	status = "okay";
+};
+
+&usb_prim_hsphy {
+	status = "okay";
+};
+
+&usb_prim_qmpphy {
+	status = "okay";
+};

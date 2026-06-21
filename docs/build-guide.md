@@ -20,7 +20,7 @@ DTS 中使用的专用兼容字符串（qcom,sun-gcc, qcom,sun-tlmm, qcom,sun-pd
 ```bash
 cd ~/oneplus-turbo6/kernel
 git add .
-git commit -m "升级到 Linux 7.1.1 + 更新 DTS/配置/文档"
+git commit -m "更新 DTS/配置/工作流"
 git push origin main
 ```
 
@@ -40,21 +40,29 @@ git push origin main
 ### 3. 工作流自动执行的操作
 
 编译工作流会：
-1. 下载指定的 Linux 内核源码
+1. 下载指定的 Linux 内核源码（缓存加速）
 2. 应用自定义 DTS 文件（sm8735.dtsi, sm8735-oneplus-turbo6.dts）
-3. 检查目标内核中是否有 SM8735 驱动支持
-4. 如果有 patches/ 中的补丁，自动应用
-5. 配置内核（ARM64 defconfig + 关键 Qualcomm 驱动）
+3. **检查目标内核中是否有 SM8735(sun) 驱动支持**
+4. **如果未找到 → 自动从 OnePlusOSS ACK 6.6.89 拉取 sun 驱动：**
+   - `drivers/clk/qcom/gcc-sun.c` — GCC 时钟控制器
+   - `drivers/pinctrl/qcom/pinctrl-sun.c` — TLMM Pin 控制器
+   - `include/dt-bindings/clock/qcom,gcc-sun.h` — DT binding 头文件
+   - 自动添加 Kconfig/Makefile 条目
+5. 配置内核（ARM64 defconfig + 关键 Qualcomm 驱动 + sun 驱动）
 6. 编译 DTB
 7. 编译内核 Image
-8. 上传编译产物
+8. **创建 boot.img**（含最小 initramfs）
+9. 上传编译产物
+
+> ✅ **2026-06-21 验证**: SM8735 sun 驱动已成功从 ACK 6.6.89 拉取并在
+> Linux 7.1.1 中编译通过。API 兼容性良好。
 
 ### 4. 获取编译产物
 
 编译完成后，在 Actions 页面 → 对应运行 → **Artifacts** 下载：
 - `kernel-image` — 内核 Image / Image.gz
 - `device-tree-blobs` — 设备树 DTB 文件
-- `boot-image` — 完整的 boot.img（仅手动触发时创建）
+- `boot-image` — 完整的 boot.img（所有触发器均生成）
 
 ---
 
@@ -187,7 +195,8 @@ fastboot flash boot boot.img
 
 ## 已知限制
 
-1. **SM8735 驱动缺失（核心阻塞项）**: Linux 7.1.1 不含 SM8735 驱动，需从 ACK 6.6 移植
+1. ~~**SM8735 驱动缺失（已解决）**~~: ✅ CI 现在自动从 OnePlusOSS ACK 6.6.89 拉取 gcc-sun.c + pinctrl-sun.c 并编译进 Linux 7.1.1
 2. **串口调试**: 需要拆机焊接串口线到主板调试焊点
 3. **内存配置**: 当前 DTS 使用占位值，需根据实际硬件调整
-4. **本地资源**: 完整编译需要 8GB+ 内存 + 多核 CPU，建议用 GitHub Actions
+4. **DTS 外设节点**: UFS、USB、IOMMU 节点已添加但寄存器地址需与真机验证
+5. **本地资源**: 完整编译需要 8GB+ 内存 + 多核 CPU，建议用 GitHub Actions

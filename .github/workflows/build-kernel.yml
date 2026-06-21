@@ -408,8 +408,8 @@ jobs:
           echo "=== 内核编译结果 ==="
           ls -la linux-src/arch/arm64/boot/Image 2>/dev/null || echo "❌ 内核未编译成功"
 
-      - name: Create boot.img (optional)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create boot.img (always)
+        if: always()
         run: |
           # 创建最小 initramfs
           mkdir -p initramfs
