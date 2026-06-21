@@ -16,8 +16,14 @@
  * - qcom,sun-pdc: fallback qcom,pdc 在主线中存在
  *
  * This is a WORK IN PROGRESS - not all peripherals are defined yet.
+ *
+ * Sun clock binding headers are fetched from OnePlusOSS ACK 6.6.89
+ * by the CI workflow. If building locally, download from:
+ *   https://github.com/OnePlusOSS/android_kernel_oneplus_sm8735
+ *   branch: oneplus/sm8735_b_16.0.0_turbo_6
  */
-
+ 
+#include <dt-bindings/clock/qcom,gcc-sun.h>
 #include <dt-bindings/clock/qcom,rpmh.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/mailbox/qcom-ipcc.h>
@@ -353,7 +359,7 @@
 			compatible = "qcom,geni-debug-uart";
 			reg = <0 0x98c000 0 0x4000>;
 			interrupts = <GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&gcc 0>;
+			clocks = <&gcc GCC_QUPV3_WRAP2_S1_CLK>;
 			clock-names = "se";
 			status = "disabled";
 		};

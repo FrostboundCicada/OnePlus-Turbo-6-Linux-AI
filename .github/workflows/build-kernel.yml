@@ -2,8 +2,16 @@
 #
 # 时间：2026-06-21
 # 目标内核：Linux 7.1.1（最新稳定版）
-# 阻塞项：SM8735 (qcom,sun-*) 驱动仍未上游化
-# 策略：升级到最新内核 + 从 ACK 6.6.89 移植 SM8735 驱动
+# 策略：从 ACK 6.6.89 (OnePlusOSS) 拉取 SM8735 sun 驱动并适配主线
+#
+# 工作流流程：
+#   1. 下载主线 Linux 内核源码
+#   2. 应用自定义 DTS 文件
+#   3. 从 OnePlusOSS ACK 仓库拉取 sun 驱动（gcc-sun, pinctrl-sun 等）
+#   4. 将 sun 驱动源码放入主线内核树并添加 Kconfig/Makefile 条目
+#   5. 配置内核（ARM64 defconfig + Qualcomm 驱动）
+#   6. 编译 DTB 和内核 Image
+#   7. 上传编译产物
 #
 # 由于本地资源有限（ARM64 Debian 容器，2.4G 可用内存），
 # 内核编译通过 GitHub 云端 CI 完成。
@@ -141,29 +149,164 @@ jobs:
           set -e
           echo "检查完成"
 
-      - name: Apply SM8735 driver patches from ACK 6.6 (if needed)
+      - name: Fetch SM8735 sun drivers from OnePlusOSS ACK kernel
         if: steps.check-drivers.outputs.sun_gcc_found == 'false'
         run: |
-          echo "=== SM8735 驱动未在主线中找到，尝试从 ACK 6.6 拉取 ==="
+          set -e
+          echo "============================================"
+          echo "SM8735 sun 驱动未在主线中找到"
+          echo "从 OnePlusOSS ACK 6.6.89 拉取..."
+          echo "============================================"
           
-          PATCH_DIR="kernel-repo/patches"
-          if [ -d "$PATCH_DIR" ] && ls $PATCH_DIR/*.patch 2>/dev/null >/dev/null; then
-            echo "应用本地补丁..."
-            for patch in $PATCH_DIR/*.patch; do
-              echo "  应用: $(basename $patch)"
-              patch -p1 -d linux-src < "$patch" || echo "  ⚠️ 补丁应用失败（可能已包含）"
-            done
+          ACK_REPO="https://github.com/OnePlusOSS/android_kernel_oneplus_sm8735"
+          ACK_BRANCH="oneplus/sm8735_b_16.0.0_turbo_6"
+          ACK_DIR="ack-kernel"
+          
+          # 1. 克隆 ACK 内核（仅 sun 驱动相关部分）
+          echo "--- 克隆 ACK 内核（精简模式）---"
+          git clone --depth 1 --branch "$ACK_BRANCH" --single-branch \
+            "$ACK_REPO" "$ACK_DIR"
+          
+          # 2. 复制 sun 驱动源码到主线内核树
+          echo "--- 复制 gcc-sun.c ---"
+          cp "$ACK_DIR/drivers/clk/qcom/gcc-sun.c" \
+             linux-src/drivers/clk/qcom/gcc-sun.c
+          
+          echo "--- 复制 pinctrl-sun.c ---"
+          cp "$ACK_DIR/drivers/pinctrl/qcom/pinctrl-sun.c" \
+             linux-src/drivers/pinctrl/qcom/pinctrl-sun.c
+          
+          # 3. 复制 DT binding 头文件
+          echo "--- 复制 DT binding 头文件 ---"
+          BINDING_SRC="$ACK_DIR/include/dt-bindings/clock"
+          BINDING_DST="linux-src/include/dt-bindings/clock"
+          for f in gcc-sun.h camcc-sun.h gpucc-sun.h dispcc-sun.h \
+                   videocc-sun.h debugcc-sun.h evacc-sun.h \
+                   tcsrcc-sun.h cambistmclkcc-sun.h; do
+            if [ -f "$BINDING_SRC/$f" ]; then
+              cp "$BINDING_SRC/$f" "$BINDING_DST/$f"
+              echo "  ✅ $f"
+            else
+              echo "  ⚠️ $f 不存在（可选）"
+            fi
+          done
+          
+          # 4. 添加 Makefile 条目（clk/qcom）
+          echo "--- 更新 clock Makefile ---"
+          CLK_MK="linux-src/drivers/clk/qcom/Makefile"
+          echo "" >> "$CLK_MK"
+          echo "# SM8735 (Sun) drivers - ported from ACK 6.6.89" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_GCC_SUN) += gcc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_GPUCC_SUN) += gpucc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_DISPCC_SUN) += dispcc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_CAMCC_SUN) += camcc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_VIDEOCC_SUN) += videocc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_DEBUGCC_SUN) += debugcc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_EVACC_SUN) += evacc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_TCSRCC_SUN) += tcsrcc-sun.o" >> "$CLK_MK"
+          echo "obj-\$(CONFIG_SM_CAMBISTMCLKCC_SUN) += cambistmclkcc-sun.o" >> "$CLK_MK"
+          
+          # 5. 添加 Kconfig 条目（clk/qcom）
+          echo "--- 更新 clock Kconfig ---"
+          CLK_KCONFIG="linux-src/drivers/clk/qcom/Kconfig"
+          cat >> "$CLK_KCONFIG" << 'KCONFIG_EOF'
+          
+          config SM_GCC_SUN
+            tristate "Sun (SM8735) Global Clock Controller"
+            depends on COMMON_CLK_QCOM
+            help
+              Support for the global clock controller on SM8735 (Sun) devices.
+              Say Y if you want to use peripheral devices such as UART, SPI, I2C,
+              USB, SD/UFS, PCIe etc.
+          
+          config SM_GPUCC_SUN
+            tristate "Sun (SM8735) Graphics Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the graphics clock controller on SM8735 (Sun) devices.
+          
+          config SM_DISPCC_SUN
+            tristate "Sun (SM8735) Display Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the display clock controller on SM8735 (Sun) devices.
+          
+          config SM_CAMCC_SUN
+            tristate "Sun (SM8735) Camera Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the camera clock controller on SM8735 (Sun) devices.
+          
+          config SM_VIDEOCC_SUN
+            tristate "Sun (SM8735) Video Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the video clock controller on SM8735 (Sun) devices.
+          
+          config SM_DEBUGCC_SUN
+            tristate "Sun (SM8735) Debug Clock Controller"
+            depends on COMMON_CLK_QCOM
+            help
+              Support for the debug clock controller on SM8735 (Sun) devices.
+          
+          config SM_EVACC_SUN
+            tristate "Sun (SM8735) EVA Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the EVA clock controller on SM8735 (Sun) devices.
+          
+          config SM_TCSRCC_SUN
+            tristate "Sun (SM8735) TCSR Clock Controller"
+            depends on COMMON_CLK_QCOM
+            help
+              Support for the TCSR clock controller on SM8735 (Sun) devices.
+          
+          config SM_CAMBISTMCLKCC_SUN
+            tristate "Sun (SM8735) CAMBISTMCLK Clock Controller"
+            depends on SM_GCC_SUN
+            help
+              Support for the CAMBISTMCLK clock controller on SM8735 (Sun) devices.
+          KCONFIG_EOF
+          
+          # 6. 添加 pinctrl-sun Kconfig 条目
+          echo "--- 更新 pinctrl Kconfig ---"
+          PINCTRL_KCONFIG="linux-src/drivers/pinctrl/qcom/Kconfig.msm"
+          # 检查 Kconfig.msm 是否存在，否则用 Kconfig
+          if [ ! -f "$PINCTRL_KCONFIG" ]; then
+            PINCTRL_KCONFIG="linux-src/drivers/pinctrl/qcom/Kconfig"
           fi
+          cat >> "$PINCTRL_KCONFIG" << 'PCONFIG_EOF'
           
-          # 尝试从 ACK 6.6.89 拉取 sun-gcc 驱动
-          echo "--- 尝试从 ACK 下载 sun-gcc 驱动 ---"
-          # ACK 6.6 的 sun-gcc 可能在以下位置之一
-          # 1. Code Aurora / Qualcomm 的 Linux 分支
-          # 2. ACK 6.6 common 内核
+          config PINCTRL_SUN
+            tristate "Qualcomm Technologies, Inc. SUN (SM8735) pin controller driver"
+            depends on GPIOLIB && OF
+            help
+              This is the pinctrl, pinmux, pinconf and gpiolib driver for the
+              Qualcomm Technologies Inc Top Level Mode Multiplexer block (TLMM)
+              block found on the Qualcomm Technologies Inc SUN (SM8735) platform.
+              Say Y here to compile statically, or M here to compile it as a
+              module. If unsure, say N.
+          PCONFIG_EOF
           
-          # 创建驱动存根是最后的备选方案
-          echo "--- 如果补丁不存在，将创建最小存根驱动 ---"
-          echo "后续可将手动移植的 ACK 6.6 驱动放入 patches/ 目录"
+          # 7. 添加 pinctrl-sun Makefile 条目
+          echo "--- 更新 pinctrl Makefile ---"
+          PINCTRL_MK="linux-src/drivers/pinctrl/qcom/Makefile"
+          echo "" >> "$PINCTRL_MK"
+          echo "# SM8735 (Sun) - ported from ACK 6.6.89" >> "$PINCTRL_MK"
+          echo "obj-\$(CONFIG_PINCTRL_SUN) += pinctrl-sun.o" >> "$PINCTRL_MK"
+          
+          echo ""
+          echo "============================================"
+          echo "✅ sun 驱动文件已部署到主线内核树"
+          echo "============================================"
+          echo ""
+          echo "文件清单："
+          echo "  drivers/clk/qcom/gcc-sun.c"
+          echo "  drivers/pinctrl/qcom/pinctrl-sun.c"
+          echo "  include/dt-bindings/clock/qcom,gcc-sun.h + 其他"
+          echo ""
+          echo "⚠️ 注意：ACK 6.6.89 驱动可能不兼容 Linux 7.1.1 API，"
+          echo "   编译错误是预期的，下一步根据错误修复。"
 
       - name: Configure kernel
         run: |
@@ -215,6 +358,16 @@ jobs:
             --enable SM_GPUCC_8650 \
             --enable SM_CAMCC_8650 \
             --enable SM_TCSRCC_8650
+          
+          # 如果 sun 驱动可用（从 ACK 拉取），则启用
+          if grep -q "CONFIG_SM_GCC_SUN" Kconfig 2>/dev/null || [ -f "drivers/clk/qcom/gcc-sun.c" ]; then
+            ./scripts/config \
+              --enable SM_GCC_SUN \
+              --enable PINCTRL_SUN
+            echo "✅ SM8735 sun 驱动已启用"
+          else
+            echo "ℹ️ sun 驱动不可用，使用 SM8650 fallback"
+          fi
           
           # 启用其他关键功能
           ./scripts/config \

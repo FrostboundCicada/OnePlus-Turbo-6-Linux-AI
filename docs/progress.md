@@ -21,20 +21,28 @@
 - [ ] 添加更多时钟控制器 (GCC, DISPCC, GPUCC 等)
 - [ ] 添加 RPMH 资源控制器 (RSC)
 
-## 阶段 3 - 内核 🔄（阻塞中）
+## 阶段 3 - 内核 🔄
 
 - [x] 选择主线内核版本：Linux 7.1.1 (2026-06-19)
 - [x] 创建 ARM64 defconfig
 - [x] 创建自定义配置 fragment（config/kernel.config）
 - [x] 创建 GitHub Actions 云端编译工作流
 - [x] 创建 patches/ 目录准备驱动补丁
-- [ ] ⚠️ **解决 SM8735 驱动缺失问题** → 阻塞项
-- [ ] 首次云端编译并验证 Image
+- [x] **✅ 首次云端编译成功**（2026-06-21，运行 #27898880561）
+  - DTB 编译通过 → sm8735-oneplus-turbo6.dtb
+  - 内核 Image 编译通过 → Image/Image.gz
+  - SM8650 系列驱动作为临时 fallback
+- [ ] ⚠️ **解决 SM8735 驱动缺失问题** → 核心阻塞项
+  - 来源已确认：OnePlusOSS/android_kernel_oneplus_sm8735 `oneplus/sm8735_b_16.0.0_turbo_6`
+  - sun 驱动文件已定位（ACK 6.6.89 内核）
 - [ ] 验证 DTB 正确加载
 
 > **阻塞原因**: 截至 Linux 7.1.1 (2026-06-19)，SM8735 (qcom,sun-*) 驱动仍未合入主线。
 > DTS 中使用的兼容字符串（qcom,sun-gcc, qcom,sun-tlmm, qcom,sun-pdc）
 > 在 7.1.1 源码中不存在。需要从 ACK 6.6.89 移植驱动或等待上游化。
+>
+> ✅ **最新进展 (2026-06-21)**: CI 编译成功（运行 #27898880561），
+> 下一步重点是从 OnePlusOSS ACK 仓库拉取 sun 驱动到 CI 工作流中。
 >
 > 其他高通平台状态（Linux 7.1）：
 > - SM8650 (8 Gen 3) ✅ 完全支持
