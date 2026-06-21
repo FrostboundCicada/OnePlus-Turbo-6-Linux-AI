@@ -1,0 +1,182 @@
+# GitHub Actions 工作流：云端编译 OnePlus Turbo 6 主线内核
+#
+# 由于本地资源有限（ARM64 Debian 容器，2.4G 可用内存），
+# 内核编译通过 GitHub 云端 CI 完成。
+#
+# 使用方法：
+#   1. 推送至 GitHub，自动触发编译
+#   2. 编译产物在 Actions → Artifacts 中下载
+#
+# 策略说明：
+#   - 方案 A：用最新主线内核（如 v7.1）尝试编译，看是否有 SM8735 驱动
+#   - 方案 B：如果方案 A 不成功，从 ACK 6.6.89 移植驱动
+#   - 手动触发时可选择任意内核版本
+
+name: Build Mainline Kernel
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'dts/**'
+      - '.github/workflows/build-kernel.yml'
+      - 'config/**'
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: 'Linux 内核版本 (git tag)'
+        required: true
+        default: 'v7.1'
+        type: string
+
+jobs:
+  # 阶段 1：方案 A — 用最新内核尝试编译，看是否有 SM8735 支持
+  try-latest-kernel:
+    name: "方案 A: 内核 v${{ matrix.kernel }}"
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false  # 一个失败不影响另一个
+      matrix:
+        kernel:
+          - label: "7.1 (latest)"
+            tag: v7.1
+          - label: "6.18 (LTS)"
+            tag: v6.18
+
+    steps:
+      - name: Checkout kernel repo (DTS + config)
+        uses: actions/checkout@v4
+        with:
+          path: kernel-repo
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu \
+            device-tree-compiler \
+            flex bison \
+            libssl-dev \
+            libncurses-dev \
+            bc cpio \
+            kmod \
+            lz4 \
+            python3
+
+      - name: Cache kernel source (${{ matrix.kernel.tag }})
+        id: cache-kernel
+        uses: actions/cache@v4
+        with:
+          path: linux-${{ matrix.kernel.tag }}
+          key: linux-${{ matrix.kernel.tag }}-dts-${{ hashFiles('kernel-repo/dts/*.dts*') }}
+
+      - name: Download kernel ${{ matrix.kernel.tag }}
+        if: steps.cache-kernel.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch ${{ matrix.kernel.tag }} \
+            https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git \
+            linux-${{ matrix.kernel.tag }}
+
+      - name: Apply device tree files
+        run: |
+          cp kernel-repo/dts/sm8735.dtsi linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/
+          cp kernel-repo/dts/sm8735-oneplus-turbo6.dts linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/
+
+          # 检查 DTS 是否已存在于 Makefile
+          if ! grep -q "sm8735-oneplus-turbo6" \
+            linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/Makefile; then
+            echo "dtb-\$(CONFIG_ARCH_QCOM) += sm8735-oneplus-turbo6.dtb" \
+              >> linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/Makefile
+          fi
+
+      - name: Check for SM8735/sun driver support
+        id: check-drivers
+        run: |
+          echo "=== 检查 SM8735 兼容字符串 ==="
+          # 检查 GCC 驱动
+          FOUND_GCC=$(grep -r "sun-gcc\|sm8735" \
+            linux-${{ matrix.kernel.tag }}/drivers/clk/qcom/ \
+            linux-${{ matrix.kernel.tag }}/drivers/soc/qcom/ 2>/dev/null | head -20 || echo "(not found)")
+          echo "GCC driver match: $FOUND_GCC"
+
+          # 检查 TLMM/pinctrl 驱动
+          FOUND_TLMM=$(grep -r "sun-tlmm\|sm8735" \
+            linux-${{ matrix.kernel.tag }}/drivers/pinctrl/qcom/ 2>/dev/null | head -20 || echo "(not found)")
+          echo "TLMM driver match: $FOUND_TLMM"
+
+          # 检查 PDC 驱动
+          FOUND_PDC=$(grep -r "\"sun-pdc\"" \
+            linux-${{ matrix.kernel.tag }}/drivers/irqchip/ 2>/dev/null | head -5 || echo "(not found)")
+          echo "PDC driver match: $FOUND_PDC"
+
+          # 检查 DTS 中的 SM8735
+          FOUND_DTS=$(find linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/ \
+            -name "*sm8735*" 2>/dev/null)
+          echo "SM8735 DTS files: $FOUND_DTS"
+
+          # 输出结果到文件供后续步骤使用
+          {
+            echo "gcc=$FOUND_GCC"
+            echo "tlmm=$FOUND_TLMM"
+            echo "pdc=$FOUND_PDC"
+            echo "dts=$FOUND_DTS"
+          } > driver-check-${{ matrix.kernel.label }}.txt
+
+      - name: Configure kernel
+        run: |
+          # 从 defconfig 开始
+          make -C linux-${{ matrix.kernel.tag }} \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+
+          # 启用关键 Qualcomm 驱动
+          cd linux-${{ matrix.kernel.tag }}
+          ./scripts/config \
+            --enable ARCH_QCOM \
+            --enable QCOM_SCM \
+            --enable SERIAL_QCOM_GENI \
+            --enable SERIAL_QCOM_GENI_CONSOLE \
+            --enable QCOM_PDC \
+            --enable QCOM_RPMH \
+            --enable QCOM_RPMHPD \
+            --enable QCOM_CLK_RPMH \
+            --enable QCOM_PMIC_GLINK \
+            --enable QCOM_SMEM \
+            --enable QCOM_SMD_RPM \
+            --enable INTERCONNECT_QCOM \
+            --enable INTERCONNECT_QCOM_BCM_VOTER \
+            --enable INTERCONNECT_QCOM_SMD_RPM
+
+          # 启用 SM8650 系列驱动（作为 SM8735 的 fallback）
+          ./scripts/config \
+            --enable PINCTRL_SM8650 \
+            --enable SM_GCC_8650 \
+            --enable INTERCONNECT_QCOM_SM8650
+          cd ..
+
+      - name: Build DTB
+        run: |
+          make -C linux-${{ matrix.kernel.tag }} \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            dtbs -j$(nproc) 2>&1 | tee dtb-build-${{ matrix.kernel.label }}.log
+
+      - name: Build kernel Image
+        run: |
+          make -C linux-${{ matrix.kernel.tag }} \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            Image -j$(nproc) 2>&1 | tee kernel-build-${{ matrix.kernel.label }}.log
+
+      - name: Archive artifacts (${{ matrix.kernel.label }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ matrix.kernel.label }}
+          path: |
+            linux-${{ matrix.kernel.tag }}/arch/arm64/boot/Image
+            linux-${{ matrix.kernel.tag }}/arch/arm64/boot/Image.gz
+            linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/sm8735*.dtb
+            driver-check-*.txt
+            dtb-build-*.log
+            kernel-build-*.log
+          retention-days: 30

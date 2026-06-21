@@ -20,7 +20,7 @@
 	/* Board-specific memory configuration */
 	memory@80000000 {
 		device_type = "memory";
-		/* We reserve the first region for firmware/trustzone; 
+		/* We reserve the first region for firmware/trustzone;
 		 * actual size = 12GB (0x300000000) or 16GB (0x400000000) */
 		reg = <0x0 0x80000000 0x0 0x30000000>;  /* 768MB init region placeholder */
 	};
@@ -39,25 +39,15 @@
 		/* For now, minimal reserved regions.
 		 * Full memory map will be added after testing. */
 	};
+
+	firmware {
+		scm {
+			compatible = "qcom,scm";
+		};
+	};
 };
 
 /* Enable debug UART */
 &uart7 {
 	status = "okay";
-};
-
-/* For USB fastboot / device mode */
-&usb_qmp_dp {
-	status = "okay";
-};
-
-/* SD card slot (if present) */
-&sdhc_2 {
-	status = "okay";
-};
-
-&firmware {
-	scm {
-		compatible = "qcom,scm";
-	};
 };
