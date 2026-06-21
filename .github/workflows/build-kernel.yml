@@ -95,35 +95,32 @@ jobs:
       - name: Check for SM8735/sun driver support
         id: check-drivers
         run: |
-          echo "=== 检查 SM8735 兼容字符串 ==="
-          # 检查 GCC 驱动
-          FOUND_GCC=$(grep -r "sun-gcc\|sm8735" \
-            linux-${{ matrix.kernel.tag }}/drivers/clk/qcom/ \
-            linux-${{ matrix.kernel.tag }}/drivers/soc/qcom/ 2>/dev/null | head -20 || echo "(not found)")
-          echo "GCC driver match: $FOUND_GCC"
-
-          # 检查 TLMM/pinctrl 驱动
-          FOUND_TLMM=$(grep -r "sun-tlmm\|sm8735" \
-            linux-${{ matrix.kernel.tag }}/drivers/pinctrl/qcom/ 2>/dev/null | head -20 || echo "(not found)")
-          echo "TLMM driver match: $FOUND_TLMM"
-
-          # 检查 PDC 驱动
-          FOUND_PDC=$(grep -r "\"sun-pdc\"" \
-            linux-${{ matrix.kernel.tag }}/drivers/irqchip/ 2>/dev/null | head -5 || echo "(not found)")
-          echo "PDC driver match: $FOUND_PDC"
-
-          # 检查 DTS 中的 SM8735
-          FOUND_DTS=$(find linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/ \
-            -name "*sm8735*" 2>/dev/null)
-          echo "SM8735 DTS files: $FOUND_DTS"
-
-          # 输出结果到文件供后续步骤使用
-          {
-            echo "gcc=$FOUND_GCC"
-            echo "tlmm=$FOUND_TLMM"
-            echo "pdc=$FOUND_PDC"
-            echo "dts=$FOUND_DTS"
-          } > driver-check-${{ matrix.kernel.label }}.txt
+          set +e
+          echo "=== 检查 SM8735/太阳 (sun) 兼容字符串 === "
+          
+          for dir in clk/qcom soc/qcom pinctrl/qcom irqchip; do
+            echo "-- drivers/$dir --"
+            ls -d "linux-${{ matrix.kernel.tag }}/drivers/$dir" 2>/dev/null || echo "(dir not found)"
+          done
+          
+          echo "--- GCC 驱动 ---"
+          grep -r "sm8735\|sun-gcc" linux-${{ matrix.kernel.tag }}/drivers/clk/qcom/ 2>/dev/null | head -10 || echo "(no match in clk/qcom)"
+          grep -r "sm8735\|sun-gcc" linux-${{ matrix.kernel.tag }}/drivers/soc/qcom/ 2>/dev/null | head -10 || echo "(no match in soc/qcom)"
+          
+          echo "--- TLMM 驱动 ---"
+          grep -r "sm8735\|sun-tlmm" linux-${{ matrix.kernel.tag }}/drivers/pinctrl/qcom/ 2>/dev/null | head -10 || echo "(no match)"
+          
+          echo "--- PDC 驱动 ---"
+          grep -r "sm8735\|sun-pdc" linux-${{ matrix.kernel.tag }}/drivers/irqchip/ 2>/dev/null | head -10 || echo "(no match)"
+          
+          echo "--- 原生 SM8735 DTS ---"
+          find linux-${{ matrix.kernel.tag }}/arch/arm64/boot/dts/qcom/ -name "*sm8735*" 2>/dev/null || echo "(no native DTS found)"
+          
+          echo "--- 内核版本 ---"
+          head -5 linux-${{ matrix.kernel.tag }}/Makefile 2>/dev/null
+          
+          set -e
+          echo "检查完成"
 
       - name: Configure kernel
         run: |
