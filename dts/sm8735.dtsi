@@ -3,6 +3,18 @@
  * Device Tree Source for Qualcomm SM8735 (Snapdragon 8s Gen 4 / "Sun") SoC
  *
  * Based on Android kernel vendor DTS (sun.dtsi) and upstream Qualcomm DTS patterns.
+ *
+ * TARGET KERNEL: Linux 7.1.1 (2026-06-19)
+ *
+ * STATUS: SM8735 (qcom,sun-*) 驱动尚未合入主线内核。
+ *         兼容字符串保留为未来上游驱动预留。
+ *         当前编译目标：Linux 7.1.1，通过 GitHub Actions 云端编译。
+ *
+ * KNOWN ISSUES:
+ * - qcom,sun-gcc: 无主线驱动匹配，需要从 ACK 6.6 移植
+ * - qcom,sun-tlmm: 无主线驱动匹配，需要从 ACK 6.6 移植
+ * - qcom,sun-pdc: fallback qcom,pdc 在主线中存在
+ *
  * This is a WORK IN PROGRESS - not all peripherals are defined yet.
  */
 

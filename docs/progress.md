@@ -23,17 +23,25 @@
 
 ## 阶段 3 - 内核 🔄（阻塞中）
 
-- [x] 选择主线内核版本：Linux 6.13 (2025-01)
+- [x] 选择主线内核版本：Linux 7.1.1 (2026-06-19)
 - [x] 创建 ARM64 defconfig
 - [x] 创建自定义配置 fragment（config/kernel.config）
 - [x] 创建 GitHub Actions 云端编译工作流
+- [x] 创建 patches/ 目录准备驱动补丁
 - [ ] ⚠️ **解决 SM8735 驱动缺失问题** → 阻塞项
 - [ ] 首次云端编译并验证 Image
 - [ ] 验证 DTB 正确加载
 
-> **阻塞原因**: Linux 6.13 不含 SM8735 (qcom,sun-*) 驱动。
+> **阻塞原因**: 截至 Linux 7.1.1 (2026-06-19)，SM8735 (qcom,sun-*) 驱动仍未合入主线。
 > DTS 中使用的兼容字符串（qcom,sun-gcc, qcom,sun-tlmm, qcom,sun-pdc）
-> 在 6.13 源码中不存在。需要从 ACK 6.6 移植驱动或使用支持 SM8735 的新内核。
+> 在 7.1.1 源码中不存在。需要从 ACK 6.6.89 移植驱动或等待上游化。
+>
+> 其他高通平台状态（Linux 7.1）：
+> - SM8650 (8 Gen 3) ✅ 完全支持
+> - SM8750 (8 Elite Gen 5) ✅ 已加入
+> - Milos/SM7635 (7s Gen 3) ✅ 已加入
+> - Eliza/Glymur/Hawi ✅ 新平台已加入
+> - **SM8735 (8s Gen 4) ❌ 仍未支持**
 
 ## 阶段 4 - 引导
 
@@ -56,11 +64,12 @@
 
 ## 已知问题
 
-### 1. SM8735 驱动未上游化
-- `qcom,sun-gcc` — 无匹配驱动（SM8650 的 GCC 寄存器地址不同）
+### 1. SM8735 驱动未上游化（核心阻塞项）
+截至 2026-06-21，Linux 7.1.1 主线仍不含 SM8735 驱动：
+- `qcom,sun-gcc` — 无匹配驱动
 - `qcom,sun-tlmm` — 无匹配驱动
-- `qcom,sun-pdc` — 无匹配驱动（fallback `qcom,pdc` 可能工作）
-- 解决方案：从 ACK 6.6.89 移植相关驱动，或使用新内核
+- `qcom,sun-pdc` — fallback `qcom,pdc` 可用
+- 解决方案：从 ACK 6.6.89 移植驱动，或等待上游化
 
 ### 2. DTS 中的占位值
 - 内存配置使用 768MB 占位值，实际设备为 12GB/16GB

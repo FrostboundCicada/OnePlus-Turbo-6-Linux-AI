@@ -40,11 +40,7 @@
 		 * Full memory map will be added after testing. */
 	};
 
-	firmware {
-		scm {
-			compatible = "qcom,scm";
-		};
-	};
+	/* firmware/scm 定义在 sm8735.dtsi 中 */
 };
 
 /* Enable debug UART */
